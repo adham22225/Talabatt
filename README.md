@@ -1,3 +1,4 @@
+
 import fs from 'fs';
 
 // إنشاء ملف main.js
