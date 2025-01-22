@@ -1,69 +1,120 @@
-# Talabat API Project
-This project is an e-commerce platform that utilizes the Entity Framework and LINQ for data access, the Onion Architecture and Repository Pattern for separation of concerns, and the Unit of Work and Specification Pattern for building efficient queries. The project follows the principles of the Clean Architecture, also known as the “Onion Architecture” which promotes separation of concerns and maintainability. The Repository pattern is used to abstract the data access layer and provide a consistent interface for querying the database. The Unit of Work pattern is used to manage the context and transaction of the Entity Framework. The Specification pattern is used to build complex queries in a composable and maintainable way. This project is built to handle large amounts of data and provide a scalable solution to e-commerce needs 1.
+import fs from 'fs';
 
-# Project Structure
-The project follows the Onion Architecture, dividing the codebase into layers:
+// إنشاء ملف main.js
+const mainJsContent = `
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import { Actor } from 'apify';
 
-- Core: Contains domain models, interfaces, and business logic.
-- Infrastructure: Houses implementations of data access, external services, and other infrastructure concerns.
-- Application: Contains application services that orchestrate business logic using core domain models.
-- Web API: Exposes endpoints, DTOs, and handles HTTP requests.
+await Actor.init();
 
+try {
+    const input = {
+        url: "https://www.talabat.com/jordan/groceries",
+        apiToken: "apify_api_KbTubUPQab5UsBUmBnxiajD1pYijj12vddgf",
+        targetApiUrl: "https://your-api-endpoint.com/receive-data"
+    };
 
-# Configuration
-Configuration settings, such as database connection strings, Redis cache settings, Stripe API keys, Hangfire configurations, and Twilio credentials, are stored in the appsettings.json file. Update these settings with your specific configuration.
+    const { url, apiToken, targetApiUrl } = input;
 
-# Database
-The application uses MSSQL Server as its database. Entity Framework Core is employed for database operations. Migrations are used to create and update the database schema. Ensure to run dotnet ef database update after making changes to the models.
+    if (!url || !apiToken || !targetApiUrl) {
+        throw new Error('Missing required inputs: url, apiToken, or targetApiUrl.');
+    }
 
-# Caching
-Redis is used for caching to enhance the performance of certain operations. The caching settings can be configured in appsettings.json.
+    console.log(\`Fetching data from: \${url}\`);
 
-# Stripe Integration
-Integration with the Stripe payment gateway is implemented for processing payments. The Stripe API key should be configured in appsettings.json.
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
 
-# Automapper
-Automapper is used to simplify the mapping between entity models and DTOs. The mapping profiles can be found in the Utilities folder.
+    const stores = [];
+    $(".store-card").each((i, element) => {
+        stores.push({
+            name: $(element).find(".store-name").text().trim(),
+            category: $(element).find(".store-category").text().trim(),
+            deliveryTime: $(element).find(".delivery-time").text().trim(),
+            rating: $(element).find(".rating").text().trim()
+        });
+    });
 
-# Onion Architecture
-The project follows the principles of Onion Architecture, separating concerns into layers to maintain a clear and modular codebase.
+    console.log('Extracted stores:', stores);
 
-# Exception Middleware
-Custom middleware is implemented to handle exceptions globally, providing consistent error responses.
+    const apiResponse = await axios.post(targetApiUrl, {
+        data: stores,
+        sourceUrl: url,
+    }, {
+        headers: {
+            Authorization: \`Bearer \${apiToken}\`,
+            'Content-Type': 'application/json',
+        },
+    });
 
-# Logging
-Logging is implemented using Serilog to capture application events and errors. Log files can be configured in appsettings.json.
+    console.log('Data successfully sent to the target API:', apiResponse.data);
 
-# Fluent Validation
-FluentValidation is used for robust server-side validation, ensuring that input data meets specified criteria.
+    await Actor.pushData(stores);
+} catch (error) {
+    console.error('Error:', error.message);
+} finally {
+    await Actor.exit();
+}
+`;
+fs.writeFileSync('main.js', mainJsContent);
 
-# Hangfire Background Jobs
-Background job processing is handled using Hangfire, providing a reliable and scalable solution for executing tasks asynchronously.
+// إنشاء ملف package.json
+const packageJsonContent = `
+{
+  "name": "talabat-scraper",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "axios": "^1.5.0",
+    "cheerio": "^1.0.0-rc.12",
+    "apify": "^3.2.6"
+  }
+}
+`;
+fs.writeFileSync('package.json', packageJsonContent);
 
-# Twilio Integration
-Twilio is integrated for sending messages. Configure your Twilio credentials in appsettings.json to enable this feature.
+// إنشاء ملف Dockerfile
+const dockerfileContent = `
+FROM apify/actor-node:20
 
-# API Endpoints
-Detailed documentation for API endpoints can be found in the Documentation folder. This documentation provides information on request and response formats, authentication, and example usage.
-  
+COPY package*.json ./
+RUN npm install --omit=dev --omit=optional
+COPY . ./
 
+CMD npm start --silent
+`;
+fs.writeFileSync('Dockerfile', dockerfileContent);
 
-# Features
-- Onion Architecture: Separation of concerns and maintainability.
-- Repository Pattern: Abstraction of the data access layer and consistent interface for querying the database.
-- Unit of Work Pattern: Management of the context and transaction of the Entity Framework.
-- Specification Pattern: Building complex queries in a composable and maintainable way.
-- Stripe Payment Gateway: Integration with Stripe for payment processing.
-  
-# Getting Started
-To get started with this project, follow these steps:
+// إنشاء ملف input_schema.json (اختياري)
+const inputSchemaContent = `
+{
+  "title": "Input Schema",
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "URL to scrape",
+      "default": "https://www.talabat.com/jordan/groceries"
+    },
+    "apiToken": {
+      "type": "string",
+      "description": "API token",
+      "default": "apify_api_KbTubUPQab5UsBUmBnxiajD1pYijj12vddgf"
+    },
+    "targetApiUrl": {
+      "type": "string",
+      "description": "Target API URL",
+      "default": "https://your-api-endpoint.com/receive-data"
+    }
+  },
+  "required": ["url", "apiToken", "targetApiUrl"]
+}
+`;
+fs.writeFileSync('.actor/input_schema.json', inputSchemaContent);
 
-- Clone the repository to your local machine.
-- Open the solution file in Visual Studio.
-- Build the solution.
-- Run the project.
-# Usage
-The Talabat Integration Platform API enables vendors to manage store, menus and orders on the Talabat platform. The API can be integrated with a vendor’s POS system to improve efficiency for menu management and order management. This API is for developers 2.
-
-# Contributing
-Contributions are welcome! Please feel free to submit a pull request.
+console.log('All necessary files have been created successfully.');
